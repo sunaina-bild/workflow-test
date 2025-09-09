@@ -1,0 +1,16 @@
+name: Test deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target-env:
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test
+        run: echo "testing pipeline"
