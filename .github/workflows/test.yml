@@ -1,16 +1,20 @@
-name: Test deploy
+name: Deploy Web Dev
 
 on:
   workflow_dispatch:
-    # inputs:
-    #   target-env:
-    #     type: string
-    #     required: true
+    inputs:
+      environment:
+        description: "Where to deploy?"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - prod
+          - staging
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Test
-        run: echo "testing pipeline"
+      - name: Print chosen environment
+        run: echo "Environment selected: ${{ github.event.inputs.environment }}"
