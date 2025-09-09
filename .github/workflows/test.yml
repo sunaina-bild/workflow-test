@@ -17,4 +17,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Print chosen environment
-        run: echo "Environment selected: ${{ github.event.inputs.environment }}"
+        run: echo "Environment selected:" ${{ github.event.inputs.environment }}
