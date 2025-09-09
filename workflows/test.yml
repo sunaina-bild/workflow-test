@@ -2,10 +2,10 @@ name: Test deploy
 
 on:
   workflow_dispatch:
-    inputs:
-      target-env:
-        type: string
-        required: true
+    # inputs:
+    #   target-env:
+    #     type: string
+    #     required: true
 
 jobs:
   deploy:
