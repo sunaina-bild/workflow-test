@@ -1,0 +1,32 @@
+name: Test Multiline Input
+
+on:
+  workflow_dispatch:
+    inputs:
+      my_multiline_input:
+        description: "Paste some multiline text here"
+        required: true
+
+jobs:
+  test-multiline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask the input
+        run: |
+          echo "::add-mask::${{ github.event.inputs.my_multiline_input }}"
+
+      - name: Write input to file
+        run: |
+          echo "${{ github.event.inputs.my_multiline_input }}" > test.txt
+          echo "Saved input into test.txt"
+
+      - name: Show file content
+        run: |
+          echo "=== test.txt ==="
+          cat test.txt
+          echo "=== END ==="
+
+      - name: Count number of lines
+        run: |
+          echo "Line count:"
+          wc -l < test.txt
