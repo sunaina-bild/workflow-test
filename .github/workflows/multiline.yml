@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Mask the input
         run: |
-          echo "::add-mask::${{ github.event.inputs.my_multiline_input }}"
+          echo "${{ github.event.inputs.my_multiline_input }}"
 
       - name: Write input to file
         run: |
