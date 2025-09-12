@@ -17,7 +17,7 @@ jobs:
 
       - name: Load ENV_CONFIG secret into file
         run: |
-          echo "${{ secrets.ENV_CONFIG }}" > base.env
+          echo "${{ vars.ENV_CONFIG }}" > base.env
 
       - name: Apply runtime overrides
         run: |
