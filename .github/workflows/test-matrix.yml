@@ -1,0 +1,20 @@
+name: Test Multi-Environment Deployment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dummy-deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: ${{ fromJSON('["' + secrets.DEPLOY_ENV_LIST + '"]') }} # can replace with secrets.DEPLOY_ENV_LIST
+    steps:
+      - name: Print environment info
+        run: |
+          echo "=============================="
+          echo "Simulating deploy to: ${{ matrix.environment }}"
+          # simulate reading environment-specific secret
+          echo "MY_SECRET=${{ secrets.MY_SECRET }}"
+          echo "✅ Done with ${{ matrix.environment }}"
+          echo "=============================="
