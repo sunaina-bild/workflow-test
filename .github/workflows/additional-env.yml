@@ -47,4 +47,4 @@ jobs:
       - name: Use environment variables
         run: |
           echo "ENV VARS IN ACTIONS:"
-          env | sort
+          sort final.env
