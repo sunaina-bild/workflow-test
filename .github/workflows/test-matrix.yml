@@ -1,38 +1,3 @@
-# name: Test Multi-Environment Deployment
-
-# on:
-#   workflow_dispatch:
-
-# jobs:
-#   prepare-matrix:
-#     runs-on: ubuntu-latest
-#     outputs:
-#       envs: ${{ steps.set-matrix.outputs.envs }}
-#     steps:
-#       - name: Generate environment matrix from secret
-#         id: set-matrix
-#         run: |
-#           # convert comma-separated secret to JSON array
-#           JSON=$(echo "$DEPLOY_ENV_LIST" | sed 's/,/","/g')
-#           echo "envs=[\"$JSON\"]" >> $GITHUB_OUTPUT
-#         env:
-#           DEPLOY_ENV_LIST: ${{ secrets.DEPLOY_ENV_LIST }}
-
-#   deploy:
-#     needs: prepare-matrix
-#     runs-on: ubuntu-latest
-#     strategy:
-#       matrix:
-#         environment: ${{ fromJSON(needs.prepare-matrix.outputs.envs) }}
-#     environment: ${{ matrix.environment }}
-#     steps:
-#       - name: Print environment info
-#         run: |
-#           echo "=============================="
-#           echo "Simulating deploy to: ${{ matrix.environment }}"
-#           # calculate hash of secret
-#           HASH=$(echo -n "${{ secrets.MY_SECRET }}" | sha256sum | awk '{print $1}')
-
 name: Test Multi-Environment Deployment
 
 on:
@@ -47,52 +12,24 @@ jobs:
       - name: Generate environment matrix from secret
         id: set-matrix
         run: |
-          # Convert comma-separated secret to JSON array
+          # convert comma-separated secret to JSON array
           JSON=$(echo "$DEPLOY_ENV_LIST" | sed 's/,/","/g')
           echo "envs=[\"$JSON\"]" >> $GITHUB_OUTPUT
         env:
           DEPLOY_ENV_LIST: ${{ secrets.DEPLOY_ENV_LIST }}
 
-  confirm-deploy:
-    needs: prepare-matrix
-    runs-on: ubuntu-latest
-    outputs:
-      proceed: ${{ steps.confirm.outputs.proceed }}
-    steps:
-      - name: Show environments and ask for confirmation
-        id: confirm
-        run: |
-          ENV_LIST=$(echo "${{ needs.prepare-matrix.outputs.envs }}" | jq -r '.[]')
-          echo "The workflow is about to deploy to the following environments:"
-          for ENV in $ENV_LIST; do
-            echo "- $ENV"
-          done
-          echo ""
-          echo "Type YES to proceed:"
-          read CONFIRM
-          if [ "$CONFIRM" != "YES" ]; then
-            echo "Deployment cancelled"
-            exit 1
-          fi
-          echo "proceed=yes" >> $GITHUB_OUTPUT
-
   deploy:
-    needs: confirm-deploy
-    if: needs.confirm-deploy.outputs.proceed == 'yes'
+    needs: prepare-matrix
     runs-on: ubuntu-latest
     strategy:
       matrix:
         environment: ${{ fromJSON(needs.prepare-matrix.outputs.envs) }}
+    environment: ${{ matrix.environment }}
     steps:
-      - name: Print environment info and secret hash
+      - name: Print environment info
         run: |
           echo "=============================="
           echo "Simulating deploy to: ${{ matrix.environment }}"
+          # calculate hash of secret
           HASH=$(echo -n "${{ secrets.MY_SECRET }}" | sha256sum | awk '{print $1}')
-          echo "Hash of MY_SECRET: $HASH"
-          echo "✅ Done with ${{ matrix.environment }}"
-          echo "=============================="
 
-#           echo "Hash of MY_SECRET: $HASH"
-#           echo "✅ Done with ${{ matrix.environment }}"
-#           echo "=============================="
