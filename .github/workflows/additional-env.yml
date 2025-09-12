@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Load ENV_CONFIG secret into file
-        run: echo "${{ secrets.ENV_CONFIG }}" > base.env
+        run: echo "${{ vars.ENV_CONFIG }}" > base.env
 
       - name: Normalize EXTRA_ENV
         run: |
