@@ -4,17 +4,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  dummy-deploy:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.set-matrix.outputs.envs }}
+    steps:
+      - name: Generate environment matrix from secret
+        id: set-matrix
+        run: |
+          # convert comma-separated secret to JSON array
+          JSON=$(echo "$DEPLOY_ENV_LIST" | sed 's/,/","/g')
+          echo "envs=[\"$JSON\"]" >> $GITHUB_OUTPUT
+        env:
+          DEPLOY_ENV_LIST: ${{ secrets.DEPLOY_ENV_LIST }}
+
+  deploy:
+    needs: prepare-matrix
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: ${{ fromJSON('["' + secrets.DEPLOY_ENV_LIST + '"]') }} # can replace with secrets.DEPLOY_ENV_LIST
+        environment: ${{ fromJSON(needs.prepare-matrix.outputs.envs) }}
     steps:
       - name: Print environment info
         run: |
           echo "=============================="
           echo "Simulating deploy to: ${{ matrix.environment }}"
-          # simulate reading environment-specific secret
-          echo "MY_SECRET=${{ secrets.MY_SECRET }}"
+          echo "MY_SECRET=${{ secrets.MY_SECRET }}"  # available in all envs
           echo "✅ Done with ${{ matrix.environment }}"
           echo "=============================="
