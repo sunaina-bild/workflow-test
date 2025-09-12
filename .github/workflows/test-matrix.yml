@@ -32,4 +32,6 @@ jobs:
           echo "Simulating deploy to: ${{ matrix.environment }}"
           # calculate hash of secret
           HASH=$(echo -n "${{ secrets.MY_SECRET }}" | sha256sum | awk '{print $1}')
-
+          echo "Hash of MY_SECRET: $HASH"
+          echo "✅ Done with ${{ matrix.environment }}"
+          echo "=============================="
