@@ -1,0 +1,50 @@
+name: Flexible Pipeline with Mergeable ENV_CONFIG
+
+on:
+  workflow_dispatch:
+    inputs:
+      EXTRA_ENV:
+        description: "Optional overrides or extra env vars (KEY=VALUE per line)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load ENV_CONFIG secret into file
+        run: |
+          echo "${{ secrets.ENV_CONFIG }}" > base.env
+
+      - name: Apply runtime overrides
+        run: |
+          cp base.env final.env
+
+          if [ ! -z "${{ github.event.inputs.EXTRA_ENV }}" ]; then
+            echo "${{ github.event.inputs.EXTRA_ENV }}" > extra.env
+
+            # Merge: runtime input overrides base secret
+            while IFS='=' read -r key value; do
+              # Remove any existing key from final.env
+              sed -i "/^${key}=/d" final.env
+              # Append new key=value
+              echo "${key}=${value}" >> final.env
+            done < extra.env
+          fi
+
+          echo "Final merged env file:"
+          cat final.env
+
+      - name: Export merged env vars
+        run: |
+          while IFS='=' read -r key value; do
+            echo "${key}=${value}" >> $GITHUB_ENV
+          done < final.env
+
+      - name: Use environment variables
+        run: |
+          echo "ENV VARS IN ACTIONS:"
+          env | sort
