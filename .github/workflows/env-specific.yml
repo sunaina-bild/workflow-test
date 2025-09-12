@@ -2,6 +2,11 @@ name: Test GitHub Environments
 
 on:
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Pick the environment"
+        required: true
+        type: environment  
 
 jobs:
   test-envs:
