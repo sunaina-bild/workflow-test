@@ -11,7 +11,7 @@ on:
 jobs:
   test-envs:
     runs-on: ubuntu-latest
-    environment:  ${{ github.ref_name }} # temporary placeholder, will be overridden
+    environment:  ${{ github.event.inputs.target_environment }}
 
     steps:
       - name: Print selected environment
