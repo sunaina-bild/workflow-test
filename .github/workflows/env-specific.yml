@@ -19,3 +19,8 @@ jobs:
 
       - name: Show secret from environment
         run: echo "MY_SECRET=${{ secrets.MY_SECRET }}"
+
+      - name: Verify secret hash
+        run: |
+         echo -n "${{ secrets.MY_SECRET }}" | sha256sum
+
