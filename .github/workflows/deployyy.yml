@@ -1,0 +1,81 @@
+name: Deploy Frontend to Custom Netlify Site
+
+on:
+  workflow_dispatch:
+    inputs:
+      custom_netlify_site_id:
+        description: "Your Netlify Site ID"
+        required: true
+      additional_env_vars:
+        description: "Optional extra environment variables (comma separated KEY=VALUE)"
+        required: false
+
+jobs:
+  build-and-deploy-custom:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.9.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Mask sensitive values
+        run: |
+          echo "::add-mask::${{ github.event.inputs.custom_netlify_site_id }}"
+          echo "::add-mask::${{ secrets.CUSTOM_NETLIFY_TOKEN }}"
+          echo "::add-mask::${{ secrets.CUSTOM_ENV_VARS }}"
+          echo "::add-mask::${{ github.event.inputs.additional_env_vars }}"
+
+      - name: Prepare env file
+        run: |
+          mkdir -p envs
+          # Start with env vars from secrets
+          echo "${{ secrets.CUSTOM_ENV_VARS }}" > envs/.env
+          
+          # Append/override with additional input vars
+          if [ -n "${{ github.event.inputs.additional_env_vars }}" ]; then
+            # Convert comma separated to newlines
+            echo "${{ github.event.inputs.additional_env_vars }}" | tr ',' '\n' >> envs/.env
+          fi
+          
+          # Deduplicate by keeping the last occurrence of a key
+          awk -F= '!seen[$1]++{line[NR]=$0; order[NR]=$1} {val[$1]=$0} END {for (i=1;i<=NR;i++) if (order[i] in val) {print val[order[i]]; delete val[order[i]]}}' envs/.env > envs/.env.tmp
+          mv envs/.env.tmp envs/.env
+
+      - name: Build project
+        run: |
+          export NODE_OPTIONS="--max-old-space-size=4096"
+          npm run build
+
+      - name: Install Netlify CLI
+        run: pnpm add -g netlify-cli
+
+      - name: Deploy to Netlify (Custom)
+        env:
+          NETLIFY_TOKEN: ${{ secrets.CUSTOM_NETLIFY_TOKEN }}
+          NETLIFY_SITE_ID: ${{ github.event.inputs.custom_netlify_site_id }}
+        run: |
+          echo "Deploying to custom netlify"
+          netlify deploy --dir=dist --site $NETLIFY_SITE_ID --auth $NETLIFY_TOKEN
+
+      - name: Sending Slack Notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,commit,author,workflow,job,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
