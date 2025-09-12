@@ -62,7 +62,7 @@ jobs:
     steps:
       - name: Load ENV_CONFIG secret into file
         run: |
-          echo "${{ secrets.ENV_CONFIG }}" > base.env
+          echo "${{ vars.ENV_CONFIG }}" > base.env
 
       - name: Normalize EXTRA_ENV into multiline
         run: |
