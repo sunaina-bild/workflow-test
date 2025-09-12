@@ -24,6 +24,7 @@ jobs:
     strategy:
       matrix:
         environment: ${{ fromJSON(needs.prepare-matrix.outputs.envs) }}
+    environment: ${{ matrix.environment }}
     steps:
       - name: Print environment info
         run: |
