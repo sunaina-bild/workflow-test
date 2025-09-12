@@ -1,4 +1,4 @@
-# name: Flexible Pipeline with Mergeable ENV_CONFIG
+name: Flexible Pipeline with Mergeable ENV_CONFIG
 
 # on:
 #   workflow_dispatch:
@@ -48,11 +48,59 @@
 #         run: |
 #           echo "ENV VARS IN ACTIONS:"
 #           sort final.env
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       EXTRA_ENV:
+#         description: "Optional extra envs (space or newline separated KEY=VALUE)"
+#         required: false
+#         default: ""
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Load ENV_CONFIG secret into file
+#         run: |
+#           echo "${{ vars.ENV_CONFIG }}" > base.env
+
+#       - name: Normalize EXTRA_ENV into multiline
+#         run: |
+#           # If input provided
+#           if [ ! -z "${{ github.event.inputs.EXTRA_ENV }}" ]; then
+#             # Replace spaces with newlines → turn "a=1 b=2" into "a=1\nb=2"
+#             echo "${{ github.event.inputs.EXTRA_ENV }}" | tr ' ' '\n' > extra.env
+#           else
+#             touch extra.env
+#           fi
+
+#       - name: Merge secret + extra envs
+#         run: |
+#           cp base.env final.env
+#           while IFS='=' read -r key value; do
+#             [ -z "$key" ] && continue
+#             sed -i "/^${key}=/d" final.env
+#             echo "${key}=${value}" >> final.env
+#           done < extra.env
+
+#           echo "====== FINAL MERGED ENV FILE ======"
+#           cat final.env
+
+#       - name: Export envs for later steps
+#         run: |
+#           while IFS='=' read -r key value; do
+#             echo "${key}=${value}" >> $GITHUB_ENV
+#           done < final.env
+
+#       - name: Show final envs
+#         run: sort final.env
+
 on:
   workflow_dispatch:
     inputs:
       EXTRA_ENV:
-        description: "Optional extra envs (space or newline separated KEY=VALUE)"
+        description: "Extra env vars (comma or space separated KEY=VALUE)"
         required: false
         default: ""
 
@@ -61,18 +109,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Load ENV_CONFIG secret into file
-        run: |
-          echo "${{ vars.ENV_CONFIG }}" > base.env
+        run: echo "${{ secrets.ENV_CONFIG }}" > base.env
 
-      - name: Normalize EXTRA_ENV into multiline
+      - name: Normalize EXTRA_ENV
         run: |
-          # If input provided
           if [ ! -z "${{ github.event.inputs.EXTRA_ENV }}" ]; then
-            # Replace spaces with newlines → turn "a=1 b=2" into "a=1\nb=2"
-            echo "${{ github.event.inputs.EXTRA_ENV }}" | tr ' ' '\n' > extra.env
+            # Replace commas or spaces with newlines
+            echo "${{ github.event.inputs.EXTRA_ENV }}" | tr ', ' '\n' > extra.env
           else
             touch extra.env
           fi
+          echo "Normalized EXTRA_ENV:"
+          cat extra.env
 
       - name: Merge secret + extra envs
         run: |
@@ -86,11 +134,3 @@ jobs:
           echo "====== FINAL MERGED ENV FILE ======"
           cat final.env
 
-      - name: Export envs for later steps
-        run: |
-          while IFS='=' read -r key value; do
-            echo "${key}=${value}" >> $GITHUB_ENV
-          done < final.env
-
-      - name: Show final envs
-        run: sort final.env
