@@ -1,0 +1,16 @@
+name: Test GitHub Environments
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-envs:
+    runs-on: ubuntu-latest
+    environment:  ${{ github.ref_name }} # temporary placeholder, will be overridden
+
+    steps:
+      - name: Print selected environment
+        run: echo "Running in environment:" ${{ job.environment }}
+
+      - name: Show secret from environment
+        run: echo "MY_SECRET=${{ secrets.MY_SECRET }}"
