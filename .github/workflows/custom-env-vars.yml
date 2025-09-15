@@ -23,10 +23,10 @@ jobs:
       - name: Prepare env file
         run: |
           mkdir -p envs
-          echo "${{ vars.ENV_CONFIG }}" > envs/.env
+          printf "%s" "${{ vars.ENV_CONFIG }}" > envs/.env
           
           if [ -n "${{ github.event.inputs.additional_env_vars }}" ]; then
-            echo "${{ github.event.inputs.additional_env_vars }}" | tr ',' '\n' >> envs/.env
+            printf "%s" "${{ github.event.inputs.additional_env_vars }}" | tr ',' '\n' >> envs/.env
           fi
 
           awk -F= '!seen[$1]++{line[NR]=$0; order[NR]=$1} {val[$1]=$0} END {for (i=1;i<=NR;i++) if (order[i] in val) {print val[order[i]]; delete val[order[i]]}}' envs/.env > envs/.env.tmp
