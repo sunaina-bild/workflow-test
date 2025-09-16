@@ -18,6 +18,8 @@ jobs:
       - name: Mask sensitive values
         run: |
           echo "::add-mask::${{ vars.CUSTOM_ENV_VARS }}"
+          value="${{ github.event.inputs.additional_env_vars }}"
+          echo "::add-mask::$value"
 
       - name: Prepare env file
         run: |
