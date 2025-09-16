@@ -1,3 +1,46 @@
+# name: Test Env File
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       additional_env_vars:
+#         description: "Comma-separated extra env vars"
+#         required: false
+
+# jobs:
+#   prepare-env:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Mask sensitive values
+#         env:
+#          INPUT_VARS: ${{ github.event.inputs.additional_env_vars }}
+#         run: |
+#          if [ -n "$INPUT_VARS" ]; then
+#           echo "::add-mask::$INPUT_VARS"
+#          fi
+#           echo "::add-mask::${{ vars.CUSTOM_ENV_VARS }}"
+
+
+#       - name: Prepare env file
+#         run: |
+#           mkdir -p envs
+#           # Start with env vars from secrets
+#           printf "%s\n" "${{ vars.CUSTOM_ENV_VARS }}" > envs/.env
+          
+#           # Append/override with additional input vars
+#           if [ -n "${{ github.event.inputs.additional_env_vars }}" ]; then
+#             echo "${{ github.event.inputs.additional_env_vars }}" | tr ',' '\n' | sed '/^$/d' >> envs/.env
+#           fi
+          
+#           # Deduplicate by keeping the last occurrence of a key
+#           awk -F= '!seen[$1]++{line[NR]=$0; order[NR]=$1} {val[$1]=$0} END {for (i=1;i<=NR;i++) if (order[i] in val) {print val[order[i]]; delete val[order[i]]}}' envs/.env > envs/.env.tmp && mv envs/.env.tmp envs/.env
+
+#       - name: Show final env file
+#         run: cat envs/.env
 name: Test Env File
 
 on:
@@ -16,27 +59,30 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Mask sensitive values
-        env:
-         INPUT_VARS: ${{ github.event.inputs.additional_env_vars }}
         run: |
-         if [ -n "$INPUT_VARS" ]; then
-          echo "::add-mask::$INPUT_VARS"
-         fi
-          echo "::add-mask::${{ vars.CUSTOM_ENV_VARS }}"
+          # Mask CUSTOM_ENV_VARS line by line
+          if [ -n "${{ vars.CUSTOM_ENV_VARS }}" ]; then
+            echo "${{ vars.CUSTOM_ENV_VARS }}" | tr ',' '\n' | while IFS='=' read -r key value; do
+              [ -n "$value" ] && echo "::add-mask::$value"
+            done
+          fi
 
+          # Mask input vars line by line
+          if [ -n "${{ github.event.inputs.additional_env_vars }}" ]; then
+            echo "${{ github.event.inputs.additional_env_vars }}" | tr ',' '\n' | while IFS='=' read -r key value; do
+              [ -n "$value" ] && echo "::add-mask::$value"
+            done
+          fi
 
       - name: Prepare env file
         run: |
           mkdir -p envs
-          # Start with env vars from secrets
           printf "%s\n" "${{ vars.CUSTOM_ENV_VARS }}" > envs/.env
           
-          # Append/override with additional input vars
           if [ -n "${{ github.event.inputs.additional_env_vars }}" ]; then
             echo "${{ github.event.inputs.additional_env_vars }}" | tr ',' '\n' | sed '/^$/d' >> envs/.env
           fi
           
-          # Deduplicate by keeping the last occurrence of a key
           awk -F= '!seen[$1]++{line[NR]=$0; order[NR]=$1} {val[$1]=$0} END {for (i=1;i<=NR;i++) if (order[i] in val) {print val[order[i]]; delete val[order[i]]}}' envs/.env > envs/.env.tmp && mv envs/.env.tmp envs/.env
 
       - name: Show final env file
