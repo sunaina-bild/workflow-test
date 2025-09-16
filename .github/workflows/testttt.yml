@@ -16,10 +16,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Mask sensitive values
+        env:
+         INPUT_VARS: ${{ github.event.inputs.additional_env_vars }}
         run: |
+         if [ -n "$INPUT_VARS" ]; then
+          echo "::add-mask::$INPUT_VARS"
+         fi
           echo "::add-mask::${{ vars.CUSTOM_ENV_VARS }}"
-          value="${{ github.event.inputs.additional_env_vars }}"
-          echo "::add-mask::$value"
+
 
       - name: Prepare env file
         run: |
