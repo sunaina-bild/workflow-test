@@ -39,7 +39,7 @@
 #       - name: Show final env file
 #         run: cat envs/.env
 
-name: Test Env File
+name: Test Env Filee
 
 on:
   workflow_dispatch:
