@@ -26,9 +26,9 @@ jobs:
           # # Start with env vars from secrets
           # printf "%s\n" "${{ vars.CUSTOM_ENV_VARS }}" > envs/.env
           # Write secret env vars safely
-          cat << 'EOF' > envs/.env
+          cat << EOF > envs/.env
           ${{ vars.CUSTOM_ENV_VARS }}
-          'EOF'
+          EOF
           
           # Append/override with additional input vars
           if [ -n "${{ env.ADDITIONAL_ENV_VARS }}" ]; then
