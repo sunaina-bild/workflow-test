@@ -23,8 +23,10 @@ jobs:
       - name: Prepare env file
         run: |
           mkdir -p envs
+          echo "${{ secrets.CUSTOM_ENV_VARS }}" | base64 -d > envs/.env
+
           # Start with env vars from secrets
-          printf "%s\n" "${{ vars.CUSTOM_ENV_VARS }}" > envs/.env
+          # printf "%s\n" "${{ vars.CUSTOM_ENV_VARS }}" > envs/.env
           # # Write secret env vars safely
           # cat << EOF > envs/.env
           # ${{ vars.CUSTOM_ENV_VARS }}
