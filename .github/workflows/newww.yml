@@ -35,3 +35,17 @@ jobs:
           awk -F= '!seen[$1]++{line[NR]=$0; order[NR]=$1} {val[$1]=$0} END {for (i=1;i<=NR;i++) if (order[i] in val) {print val[order[i]]; delete val[order[i]]}}' envs/.env > envs/.env.tmp && mv envs/.env.tmp envs/.env
       - name: Show final env file
         run: cat envs/.env
+        
+      - name: Deploy to Netlify (Custom)
+        env:
+          CUSTOM_VARS: ${{ github.event.inputs.additional_env_vars }}
+        run: |
+          echo "Deploying to $CUSTOM_VARS"
+          
+      - name: Deploy to Netlify 
+        env:
+          CUSTOM_VARS: ${{ env.ADDITIONAL_ENV_VARS }}
+        run: |
+          echo "Deploying to $CUSTOM_VARS"
+      
+      
