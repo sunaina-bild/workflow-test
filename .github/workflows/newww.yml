@@ -32,7 +32,15 @@ jobs:
           fi
           
           # Deduplicate by keeping the last occurrence of a key
-          awk -F= '!seen[$1]++{line[NR]=$0; order[NR]=$1} {val[$1]=$0} END {for (i=1;i<=NR;i++) if (order[i] in val) {print val[order[i]]; delete val[order[i]]}}' envs/.env > envs/.env.tmp && mv envs/.env.tmp envs/.env
+          # awk -F= '!seen[$1]++{line[NR]=$0; order[NR]=$1} {val[$1]=$0} END {for (i=1;i<=NR;i++) if (order[i] in val) {print val[order[i]]; delete val[order[i]]}}' envs/.env > envs/.env.tmp && mv envs/.env.tmp envs/.env
+          if [ -f envs/.env ]; then
+            # Create a temporary file
+            TEMP_FILE=$(mktemp)
+            # Read the file in reverse, process unique keys, then reverse back
+            tac envs/.env | awk -F= '!seen[$1]++ {print}' | tac > "$TEMP_FILE"
+            # Replace the original file with our processed version
+            mv "$TEMP_FILE" envs/.env
+          fi
       - name: Show final env file
         run: cat envs/.env
         
