@@ -22,7 +22,7 @@ jobs:
          echo ADDITIONAL_ENV_VARS=$ADDITIONAL_ENV_VARS >> $GITHUB_ENV
       - name: Prepare env file
         env: 
-          CUSTOM_ENV_VARS: ${{ secrets.CUSTOM_ENV_VARS }}
+          CUSTOM_ENV_VARS: ${{ vars.CUSTOM_ENV_VARS }}
         run: |
           mkdir -p envs
           echo "$CUSTOM_ENV_VARS" | base64 -d > envs/.env
