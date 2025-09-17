@@ -17,7 +17,7 @@ jobs:
 
       - name: Mask sensitive values
         run: |
-         ADDITIONAL_ENV_VARS=$(jq -r '.inputs.additional_env_vars' $GITHUB_EVENT_PATH)
+         ADDITIONAL_ENV_VARS=$(jq -r '.inputs.additional_env_vars // empty' $GITHUB_EVENT_PATH)
          echo ::add-mask::$ADDITIONAL_ENV_VARS
          echo ADDITIONAL_ENV_VARS=$ADDITIONAL_ENV_VARS >> $GITHUB_ENV
       - name: Prepare env file
