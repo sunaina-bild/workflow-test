@@ -9,5 +9,6 @@ jobs:
     with:
       stage: dev
       region: us-east-1
+      target-env: dev
     secrets:
       DUMMY_SECRET: ${{ secrets.DUMMY_SECRET }}
