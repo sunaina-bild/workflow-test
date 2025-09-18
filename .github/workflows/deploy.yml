@@ -30,3 +30,4 @@ jobs:
       - name: Show secret value
         run: |
           echo "Dummy Secret: ${{ vars.DUMMY_SECRET }}"
+          echo "Secret length: ${#MY_SECRET}"
