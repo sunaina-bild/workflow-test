@@ -6,12 +6,6 @@ on:
       target-env:
         required: true
         type: string
-      stage:
-        required: true
-        type: string
-      region:
-        required: true
-        type: string
     secrets:
       DUMMY_SECRET:
         required: true
