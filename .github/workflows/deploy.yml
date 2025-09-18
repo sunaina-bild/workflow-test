@@ -1,0 +1,27 @@
+name: Dummy Deploy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        required: true
+        type: string
+      region:
+        required: true
+        type: string
+    secrets:
+      DUMMY_SECRET:
+        required: true
+
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show input values
+        run: |
+          echo "Stage: ${{ inputs.stage }}"
+          echo "Region: ${{ inputs.region }}"
+
+      - name: Show secret value
+        run: |
+          echo "Dummy Secret: ${{ secrets.DUMMY_SECRET }}"
