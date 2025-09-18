@@ -1,0 +1,13 @@
+name: Deploy Dev (Dummy)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call-dummy:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      stage: dev
+      region: us-east-1
+    secrets:
+      DUMMY_SECRET: ${{ secrets.DUMMY_SECRET }}
