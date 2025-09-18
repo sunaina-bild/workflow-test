@@ -15,6 +15,10 @@ jobs:
   dummy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target-env }}
+    permissions:
+      id-token: write      
+      contents: read  
+      
     steps:
       - name: Show input values
         env:
