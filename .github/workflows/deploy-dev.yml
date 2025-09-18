@@ -10,3 +10,6 @@ jobs:
       target-env: dev
     secrets:
       DUMMY_SECRET: ${{ secrets.DUMMY_SECRET }}
+    permissions:
+      id-token: write      
+      contents: read
