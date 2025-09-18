@@ -23,9 +23,12 @@ jobs:
     environment: ${{ inputs.target-env }}
     steps:
       - name: Show input values
+        env:
+          STAGE: ${{ vars.STAGE }}
+          REGION: ${{ vars.REGION }}
         run: |
-          echo "Stage: ${{ inputs.stage }}"
-          echo "Region: ${{ inputs.region }}"
+          echo "Stage: $STAGE"
+          echo "Region: $REGION"
 
       - name: Show secret value
         run: |
