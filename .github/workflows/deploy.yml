@@ -15,6 +15,7 @@ on:
     secrets:
       DUMMY_SECRET:
         required: true
+    
 
 jobs:
   dummy:
@@ -28,5 +29,4 @@ jobs:
 
       - name: Show secret value
         run: |
-          echo "Dummy Secret: ${{ secrets.DUMMY_SECRET }}"
           echo "Dummy Secret: ${{ vars.DUMMY_SECRET }}"
