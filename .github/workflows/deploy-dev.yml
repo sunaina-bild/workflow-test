@@ -9,6 +9,4 @@ jobs:
     with:
       target-env: dev
     secrets: inherit
-    permissions:
-      id-token: write      
-      contents: read
+    
