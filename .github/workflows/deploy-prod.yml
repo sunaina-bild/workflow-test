@@ -8,5 +8,4 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       target-env: prod
-    secrets:
-      DUMMY_SECRET: ${{ secrets.DUMMY_SECRET }}
+    secrets: inherit
