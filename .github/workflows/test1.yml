@@ -1,1 +1,4 @@
-svfgdb
+name: svfgdb
+
+on: 
+  workflow_dispatch:
