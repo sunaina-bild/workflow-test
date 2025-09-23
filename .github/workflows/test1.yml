@@ -1,0 +1,4 @@
+name: svfgdb
+
+on: 
+  workflow_dispatch:
