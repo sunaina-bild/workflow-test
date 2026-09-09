@@ -37,7 +37,6 @@ jobs:
           echo "aws_secret_access_key = $AWS_SECRET_KEY" >> ~/.aws/credentials
 
       - name: Generate Zip
-        working-directory: ./cad
         run: |
           echo "test command"
 
