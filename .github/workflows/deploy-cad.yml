@@ -1,0 +1,101 @@
+name: Deploy CAD
+
+on:
+  workflow_call:
+    inputs:
+      target-env:
+        type: string
+        required: true
+      instance-refresh:
+        type: boolean
+        required: false
+        default: false
+        description: Start an ASG instance refresh after the zip is uploaded to S3
+      asg-name:
+        type: string
+        required: false
+        default: ''
+        description: Auto Scaling Group name to refresh (required when instance-refresh is true)
+    secrets:
+      AWS_ACCESS_KEY:
+        required: true
+      AWS_SECRET_KEY:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target-env }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create AWS credentials file
+        env:
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        run: |
+          mkdir -p ~/.aws
+          echo "[default]" > ~/.aws/credentials
+          echo "aws_access_key_id = $AWS_ACCESS_KEY" >> ~/.aws/credentials
+          echo "aws_secret_access_key = $AWS_SECRET_KEY" >> ~/.aws/credentials
+
+      - name: Generate Zip
+        run: |
+          echo "test command"
+
+      - name: Instance refresh
+        if: ${{ inputs.instance-refresh }}
+        env:
+          ASG_NAME: ${{ inputs.asg-name }}
+          AWS_REGION: ${{ vars.REGION }}
+          # Safety cap so a stuck refresh can't hang the runner indefinitely.
+          MAX_WAIT_SECONDS: '7200'
+          POLL_INTERVAL_SECONDS: '30'
+        run: |
+          set -euo pipefail
+
+          if [ -z "$ASG_NAME" ]; then
+            echo "::error::instance-refresh is enabled but no asg-name was provided."
+            exit 1
+          fi
+
+          echo "Starting instance refresh for Auto Scaling Group: $ASG_NAME"
+          REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "$ASG_NAME" \
+            --query 'InstanceRefreshId' --output text)
+          echo "Instance refresh started: $REFRESH_ID"
+
+          elapsed=0
+          while true; do
+            sleep "$POLL_INTERVAL_SECONDS"
+            elapsed=$((elapsed + POLL_INTERVAL_SECONDS))
+
+            REFRESH_JSON=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --instance-refresh-ids "$REFRESH_ID" \
+              --query 'InstanceRefreshes[0]' --output json)
+            STATUS=$(echo "$REFRESH_JSON" | jq -r '.Status')
+            PCT=$(echo "$REFRESH_JSON" | jq -r '.PercentageComplete // 0')
+            echo "Instance refresh $REFRESH_ID status: $STATUS (${PCT}% complete, ${elapsed}s elapsed)"
+
+            case "$STATUS" in
+              Successful)
+                echo "Instance refresh completed successfully."
+                exit 0
+                ;;
+              Failed|Cancelled|RollbackFailed|RollbackSuccessful)
+                REASON=$(echo "$REFRESH_JSON" | jq -r '.StatusReason // "No reason provided"')
+                echo "::error::Instance refresh $REFRESH_ID ended with status '$STATUS': $REASON"
+                exit 1
+                ;;
+            esac
+
+            if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
+              echo "::error::Instance refresh $REFRESH_ID did not finish within ${MAX_WAIT_SECONDS}s (last status: $STATUS)."
+              exit 1
+            fi
+          done
+
+
