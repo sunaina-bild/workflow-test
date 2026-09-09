@@ -14,5 +14,5 @@ jobs:
     uses: ./.github/workflows/deploy-cad.yml
     secrets: inherit
     with:
-      target-env: dev
+      target-env: local
       instance-refresh: ${{ inputs.instance-refresh }}
