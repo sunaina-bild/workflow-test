@@ -11,11 +11,6 @@ on:
         required: false
         default: false
         description: Start an ASG instance refresh after the zip is uploaded to S3
-      asg-name:
-        type: string
-        required: false
-        default: ''
-        description: Auto Scaling Group name to refresh (required when instance-refresh is true)
     secrets:
       AWS_ACCESS_KEY:
         required: true
@@ -42,60 +37,91 @@ jobs:
           echo "aws_secret_access_key = $AWS_SECRET_KEY" >> ~/.aws/credentials
 
       - name: Generate Zip
+        working-directory: ./cad
         run: |
           echo "test command"
 
       - name: Instance refresh
         if: ${{ inputs.instance-refresh }}
         env:
-          ASG_NAME: ${{ inputs.asg-name }}
           AWS_REGION: ${{ vars.REGION }}
+          TARGET_ENV: ${{ inputs.target-env }}
+          # ASG discovery tag (must match the Tags block in cfn-stacks/cad.template).
+          TAG_KEY: 'bild:service'
+          TAG_VALUE: 'cad'
+          # Replacement pace: keep >= 75% of desired capacity in service and
+          # allow bursting to 150% (launch-before-terminate) while replacing.
+          MIN_HEALTHY_PERCENTAGE: '75'
+          MAX_HEALTHY_PERCENTAGE: '150'
           # Safety cap so a stuck refresh can't hang the runner indefinitely.
           MAX_WAIT_SECONDS: '7200'
           POLL_INTERVAL_SECONDS: '30'
         run: |
           set -euo pipefail
 
-          if [ -z "$ASG_NAME" ]; then
-            echo "::error::instance-refresh is enabled but no asg-name was provided."
+          if [ -z "${AWS_REGION:-}" ]; then
+            echo "::error::AWS_REGION is empty. Set the 'REGION' variable for the '${TARGET_ENV}' environment before enabling instance-refresh."
             exit 1
           fi
 
-          echo "Starting instance refresh for Auto Scaling Group: $ASG_NAME"
-          REFRESH_ID=$(aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "$ASG_NAME" \
-            --query 'InstanceRefreshId' --output text)
-          echo "Instance refresh started: $REFRESH_ID"
+          echo "Discovering CAD Auto Scaling Groups tagged ${TAG_KEY}=${TAG_VALUE} in ${AWS_REGION}..."
+          ASG_NAMES=$(aws autoscaling describe-auto-scaling-groups \
+            --filters "Name=tag:${TAG_KEY},Values=${TAG_VALUE}" \
+            --query 'AutoScalingGroups[].AutoScalingGroupName' \
+            --output text)
 
-          elapsed=0
-          while true; do
-            sleep "$POLL_INTERVAL_SECONDS"
-            elapsed=$((elapsed + POLL_INTERVAL_SECONDS))
+          if [ -z "$ASG_NAMES" ]; then
+            echo "::error::No Auto Scaling Group found with tag ${TAG_KEY}=${TAG_VALUE} in region ${AWS_REGION}. Is the CAD stack deployed and tagged?"
+            exit 1
+          fi
+          echo "Found ASG(s) to refresh: $ASG_NAMES"
 
-            REFRESH_JSON=$(aws autoscaling describe-instance-refreshes \
-              --auto-scaling-group-name "$ASG_NAME" \
-              --instance-refresh-ids "$REFRESH_ID" \
-              --query 'InstanceRefreshes[0]' --output json)
-            STATUS=$(echo "$REFRESH_JSON" | jq -r '.Status')
-            PCT=$(echo "$REFRESH_JSON" | jq -r '.PercentageComplete // 0')
-            echo "Instance refresh $REFRESH_ID status: $STATUS (${PCT}% complete, ${elapsed}s elapsed)"
+          # Start a refresh for one ASG and block until it reaches a terminal state.
+          refresh_asg() {
+            asg="$1"
+            echo "[$asg] Starting instance refresh (MinHealthy=${MIN_HEALTHY_PERCENTAGE}%, MaxHealthy=${MAX_HEALTHY_PERCENTAGE}%)"
+            refresh_id=$(aws autoscaling start-instance-refresh \
+              --auto-scaling-group-name "$asg" \
+              --preferences "{\"MinHealthyPercentage\": ${MIN_HEALTHY_PERCENTAGE}, \"MaxHealthyPercentage\": ${MAX_HEALTHY_PERCENTAGE}}" \
+              --query 'InstanceRefreshId' --output text)
+            echo "[$asg] Instance refresh started: $refresh_id"
 
-            case "$STATUS" in
-              Successful)
-                echo "Instance refresh completed successfully."
-                exit 0
-                ;;
-              Failed|Cancelled|RollbackFailed|RollbackSuccessful)
-                REASON=$(echo "$REFRESH_JSON" | jq -r '.StatusReason // "No reason provided"')
-                echo "::error::Instance refresh $REFRESH_ID ended with status '$STATUS': $REASON"
-                exit 1
-                ;;
-            esac
+            elapsed=0
+            while true; do
+              sleep "$POLL_INTERVAL_SECONDS"
+              elapsed=$((elapsed + POLL_INTERVAL_SECONDS))
 
-            if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
-              echo "::error::Instance refresh $REFRESH_ID did not finish within ${MAX_WAIT_SECONDS}s (last status: $STATUS)."
-              exit 1
-            fi
+              refresh_json=$(aws autoscaling describe-instance-refreshes \
+                --auto-scaling-group-name "$asg" \
+                --instance-refresh-ids "$refresh_id" \
+                --query 'InstanceRefreshes[0]' --output json)
+              status=$(echo "$refresh_json" | jq -r '.Status')
+              pct=$(echo "$refresh_json" | jq -r '.PercentageComplete // 0')
+              echo "[$asg] status: $status (${pct}% complete, ${elapsed}s elapsed)"
+
+              case "$status" in
+                Successful)
+                  echo "[$asg] Instance refresh completed successfully."
+                  return 0
+                  ;;
+                Failed|Cancelled|RollbackFailed|RollbackSuccessful)
+                  reason=$(echo "$refresh_json" | jq -r '.StatusReason // "No reason provided"')
+                  echo "::error::[$asg] Instance refresh $refresh_id ended with status '$status': $reason"
+                  return 1
+                  ;;
+              esac
+
+              if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
+                echo "::error::[$asg] Instance refresh $refresh_id did not finish within ${MAX_WAIT_SECONDS}s (last status: $status)."
+                return 1
+              fi
+            done
+          }
+
+          rc=0
+          for asg in $ASG_NAMES; do
+            refresh_asg "$asg" || rc=1
           done
+          exit $rc
 
 
