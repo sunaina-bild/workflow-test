@@ -1,0 +1,24 @@
+name: Deploy CAD local
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance-refresh:
+        description: Start an ASG instance refresh after uploading to S3
+        type: boolean
+        required: false
+        default: false
+      asg-name:
+        description: Auto Scaling Group name to refresh (required when instance refresh is checked)
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-cad.yml
+    secrets: inherit
+    with:
+      target-env: local
+      instance-refresh: ${{ inputs.instance-refresh }}
+      asg-name: ${{ inputs.asg-name }}
