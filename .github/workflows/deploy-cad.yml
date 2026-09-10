@@ -85,37 +85,37 @@ jobs:
               --query 'InstanceRefreshId' --output text)
             echo "[$asg] Instance refresh started: $refresh_id"
 
-            elapsed=0
-            while true; do
-              sleep "$POLL_INTERVAL_SECONDS"
-              elapsed=$((elapsed + POLL_INTERVAL_SECONDS))
+          #   elapsed=0
+          #   while true; do
+          #     sleep "$POLL_INTERVAL_SECONDS"
+          #     elapsed=$((elapsed + POLL_INTERVAL_SECONDS))
 
-              refresh_json=$(aws autoscaling describe-instance-refreshes \
-                --auto-scaling-group-name "$asg" \
-                --instance-refresh-ids "$refresh_id" \
-                --query 'InstanceRefreshes[0]' --output json)
-              status=$(echo "$refresh_json" | jq -r '.Status')
-              pct=$(echo "$refresh_json" | jq -r '.PercentageComplete // 0')
-              echo "[$asg] status: $status (${pct}% complete, ${elapsed}s elapsed)"
+          #     refresh_json=$(aws autoscaling describe-instance-refreshes \
+          #       --auto-scaling-group-name "$asg" \
+          #       --instance-refresh-ids "$refresh_id" \
+          #       --query 'InstanceRefreshes[0]' --output json)
+          #     status=$(echo "$refresh_json" | jq -r '.Status')
+          #     pct=$(echo "$refresh_json" | jq -r '.PercentageComplete // 0')
+          #     echo "[$asg] status: $status (${pct}% complete, ${elapsed}s elapsed)"
 
-              case "$status" in
-                Successful)
-                  echo "[$asg] Instance refresh completed successfully."
-                  return 0
-                  ;;
-                Failed|Cancelled|RollbackFailed|RollbackSuccessful)
-                  reason=$(echo "$refresh_json" | jq -r '.StatusReason // "No reason provided"')
-                  echo "::error::[$asg] Instance refresh $refresh_id ended with status '$status': $reason"
-                  return 1
-                  ;;
-              esac
+          #     case "$status" in
+          #       Successful)
+          #         echo "[$asg] Instance refresh completed successfully."
+          #         return 0
+          #         ;;
+          #       Failed|Cancelled|RollbackFailed|RollbackSuccessful)
+          #         reason=$(echo "$refresh_json" | jq -r '.StatusReason // "No reason provided"')
+          #         echo "::error::[$asg] Instance refresh $refresh_id ended with status '$status': $reason"
+          #         return 1
+          #         ;;
+          #     esac
 
-              if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
-                echo "::error::[$asg] Instance refresh $refresh_id did not finish within ${MAX_WAIT_SECONDS}s (last status: $status)."
-                return 1
-              fi
-            done
-          }
+          #     if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
+          #       echo "::error::[$asg] Instance refresh $refresh_id did not finish within ${MAX_WAIT_SECONDS}s (last status: $status)."
+          #       return 1
+          #     fi
+          #   done
+          # }
 
           rc=0
           for asg in $ASG_NAMES; do
