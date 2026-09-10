@@ -40,21 +40,17 @@ jobs:
         run: |
           echo "test command"
 
-      - name: Instance refresh
+      
+      - name: Start instance refresh
+        id: instance_refresh
         if: ${{ inputs.instance-refresh }}
         env:
           AWS_REGION: ${{ vars.REGION }}
           TARGET_ENV: ${{ inputs.target-env }}
-          # ASG discovery tag (must match the Tags block in cfn-stacks/cad.template).
           TAG_KEY: 'bild:service'
           TAG_VALUE: 'cad'
-          # Replacement pace: keep >= 75% of desired capacity in service and
-          # allow bursting to 150% (launch-before-terminate) while replacing.
           MIN_HEALTHY_PERCENTAGE: '75'
           MAX_HEALTHY_PERCENTAGE: '150'
-          # Safety cap so a stuck refresh can't hang the runner indefinitely.
-          MAX_WAIT_SECONDS: '7200'
-          POLL_INTERVAL_SECONDS: '30'
         run: |
           set -euo pipefail
 
@@ -75,56 +71,102 @@ jobs:
           fi
           echo "Found ASG(s) to refresh: $ASG_NAMES"
 
-          # Start a refresh for one ASG and block until it reaches a terminal state.
-          refresh_asg() {
-            asg="$1"
-            echo "[$asg] Starting instance refresh (MinHealthy=${MIN_HEALTHY_PERCENTAGE}%, MaxHealthy=${MAX_HEALTHY_PERCENTAGE}%)"
+          # Start an instance refresh for each discovered ASG and record the
+          # "ASG_NAME REFRESH_ID" pairs. start-instance-refresh is asynchronous,
+          # so completion is tracked separately in the "Wait" step below, which
+          # consumes these pairs from this step's output.
+          REFRESHES=""
+          for asg in $ASG_NAMES; do
+            echo "[$asg] Starting instance refresh (MinHealthy=${MIN_HEALTHY_PERCENTAGE}%, MaxHealthy=${MAX_HEALTHY_PERCENTAGE}%, InService + warm pool)"
             refresh_id=$(aws autoscaling start-instance-refresh \
               --auto-scaling-group-name "$asg" \
               --preferences "{\"MinHealthyPercentage\": ${MIN_HEALTHY_PERCENTAGE}, \"MaxHealthyPercentage\": ${MAX_HEALTHY_PERCENTAGE}, \"SkipMatching\": false}" \
-              --query 'InstanceRefreshId' --output text)
+              --query 'InstanceRefreshId' --output text) || {
+                echo "::error::[$asg] start-instance-refresh call failed"
+                exit 1
+              }
+            if [ -z "$refresh_id" ] || [ "$refresh_id" = "None" ]; then
+              echo "::error::[$asg] start-instance-refresh returned no InstanceRefreshId"
+              exit 1
+            fi
             echo "[$asg] Instance refresh started: $refresh_id"
+            REFRESHES="${REFRESHES}${asg} ${refresh_id}"$'\n'
+          done
 
-            # TEMP: polling disabled -- start the refresh and return without
-            # waiting for completion. Remove this block to re-enable the wait.
-            # return 0
+          # Expose the "ASG_NAME REFRESH_ID" lines as a step output for the wait step.
+          {
+            echo "refreshes<<REFRESHES_EOF"
+            printf '%s' "$REFRESHES"
+            echo "REFRESHES_EOF"
+          } >> "$GITHUB_OUTPUT"
 
-            # elapsed=0
-            # while true; do
-            #   sleep "$POLL_INTERVAL_SECONDS"
-            #   elapsed=$((elapsed + POLL_INTERVAL_SECONDS))
+      - name: Wait for instance refresh
+        if: ${{ inputs.instance-refresh }}
+        env:
+          AWS_REGION: ${{ vars.REGION }}
+          REFRESHES: ${{ steps.instance_refresh.outputs.refreshes }}
+          MAX_WAIT_SECONDS: '7200'
+          POLL_INTERVAL_SECONDS: '30'
+        run: |
+          set -euo pipefail
 
-            #   refresh_json=$(aws autoscaling describe-instance-refreshes \
-            #     --auto-scaling-group-name "$asg" \
-            #     --instance-refresh-ids "$refresh_id" \
-            #     --query 'InstanceRefreshes[0]' --output json)
-            #   status=$(echo "$refresh_json" | jq -r '.Status')
-            #   pct=$(echo "$refresh_json" | jq -r '.PercentageComplete // 0')
-            #   echo "[$asg] status: $status (${pct}% complete, ${elapsed}s elapsed)"
+          if [ -z "${REFRESHES//[[:space:]]/}" ]; then
+            echo "::error::No instance refresh ids were produced by the start step."
+            exit 1
+          fi
 
-            #   case "$status" in
-            #     Successful)
-            #       echo "[$asg] Instance refresh completed successfully."
-            #       return 0
-            #       ;;
-            #     Failed|Cancelled|RollbackFailed|RollbackSuccessful)
-            #       reason=$(echo "$refresh_json" | jq -r '.StatusReason // "No reason provided"')
-            #       echo "::error::[$asg] Instance refresh $refresh_id ended with status '$status': $reason"
-            #       return 1
-            #       ;;
-            #   esac
+          # Poll one refresh until it reaches a terminal state.
+          wait_for_refresh() {
+            asg="$1"
+            refresh_id="$2"
+            echo "[$asg] Waiting for instance refresh $refresh_id to complete..."
+            elapsed=0
+            while true; do
+              sleep "$POLL_INTERVAL_SECONDS"
+              elapsed=$((elapsed + POLL_INTERVAL_SECONDS))
 
-            #   if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
-            #     echo "::error::[$asg] Instance refresh $refresh_id did not finish within ${MAX_WAIT_SECONDS}s (last status: $status)."
-            #     return 1
-            #   fi
-            # done
+              refresh_json=$(aws autoscaling describe-instance-refreshes \
+                --auto-scaling-group-name "$asg" \
+                --instance-refresh-ids "$refresh_id" \
+                --query 'InstanceRefreshes[0]' --output json) || {
+                  echo "::error::[$asg] describe-instance-refreshes call failed"
+                  return 1
+                }
+              status=$(echo "$refresh_json" | jq -r '.Status // empty')
+              if [ -z "$status" ]; then
+                echo "::error::[$asg] could not read instance refresh status (empty/null response)"
+                return 1
+              fi
+              pct=$(echo "$refresh_json" | jq -r '.PercentageComplete // 0')
+              echo "[$asg] status: $status (${pct}% complete, ${elapsed}s elapsed)"
+
+              case "$status" in
+                Successful)
+                  echo "[$asg] Instance refresh completed successfully."
+                  return 0
+                  ;;
+                Failed|Cancelled|RollbackFailed|RollbackSuccessful)
+                  reason=$(echo "$refresh_json" | jq -r '.StatusReason // "No reason provided"')
+                  echo "::error::[$asg] Instance refresh $refresh_id ended with status '$status': $reason"
+                  return 1
+                  ;;
+              esac
+
+              if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
+                echo "::error::[$asg] Instance refresh $refresh_id did not finish within ${MAX_WAIT_SECONDS}s (last status: $status)."
+                return 1
+              fi
+            done
           }
 
           rc=0
-          for asg in $ASG_NAMES; do
-            refresh_asg "$asg" || rc=1
-          done
+          while read -r asg refresh_id; do
+            if [ -z "$asg" ]; then
+              continue
+            fi
+            wait_for_refresh "$asg" "$refresh_id" || rc=1
+          done <<< "$REFRESHES"
           exit $rc
+
 
 
